@@ -8,7 +8,7 @@
   'use strict';
 
   /* ---------- constants ---------- */
-  var MAX_DURATION_SEC = 36000; // 10 hours
+  var MAX_DURATION_SEC = 36000; // 10 hours – maximum project length per requirements
   var AUTOSAVE_KEY = 'anime-maker-project';
   var COLORS = [
     '#e74c8b', '#6c5ce7', '#00b894', '#fdcb6e', '#0984e3',
