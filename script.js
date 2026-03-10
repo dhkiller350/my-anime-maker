@@ -560,7 +560,7 @@
 
     // Warn if content already exists
     if (project.scenes.length > 0 || project.episodes.length > 0 || project.characters.length > 0) {
-      if (!confirm('This will replace all existing episodes, scenes, and characters. Continue?')) return;
+      if (!confirm('This will replace all existing episodes, scenes, characters, and storyboard panels. Continue?')) return;
     }
 
     var template = getGenreTemplate(genre);
