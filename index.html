@@ -371,6 +371,48 @@
         </div>
       </div>
     </section>
+
+    <!-- ===== Creation Wizard Modal ===== -->
+    <div id="wizard-modal" class="modal hidden">
+      <div class="modal-content modal-wide">
+        <h3>🚀 Customize Your Project</h3>
+        <p class="hint" style="margin-bottom:1rem">Personalize the details below before generating. You can always edit everything afterwards.</p>
+        <form id="wizard-form" autocomplete="off">
+
+          <!-- Episode count (shows only) -->
+          <div class="form-group" id="wizard-episode-group">
+            <label for="wizard-episode-count">Number of Episodes</label>
+            <input type="number" id="wizard-episode-count" min="1" max="50" value="1">
+            <span class="hint">Each episode will be <strong>1 h 50 min</strong>.</span>
+          </div>
+
+          <!-- Main Setting -->
+          <div class="form-group">
+            <label for="wizard-setting">Main Setting / World</label>
+            <input type="text" id="wizard-setting" placeholder="e.g. A futuristic city floating in the sky" maxlength="300">
+            <span class="hint">Describe where your story takes place. This sets the default location for scenes.</span>
+          </div>
+
+          <!-- Characters -->
+          <div class="form-group">
+            <label>Characters <span class="hint">(customize names, roles &amp; descriptions)</span></label>
+            <div id="wizard-characters"></div>
+            <button type="button" id="wizard-add-char-btn" class="btn-small" style="margin-top:0.5rem">+ Add Another Character</button>
+          </div>
+
+          <!-- Extra notes -->
+          <div class="form-group">
+            <label for="wizard-notes">Additional Notes / Plot Ideas</label>
+            <textarea id="wizard-notes" rows="3" placeholder="Any extra plot points, themes, or ideas you want included..." maxlength="2000"></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="submit" class="btn-primary" style="background:var(--success)">🚀 Generate Project</button>
+            <button type="button" class="btn-secondary" id="wizard-cancel-btn">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </main>
 
   <!-- Toast notification -->

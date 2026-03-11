@@ -541,16 +541,15 @@
   }
 
   /* -----------------------------------------------------------
-     Start Creating – scaffold the project from user input
+     Start Creating – open the wizard modal for user customization
      ----------------------------------------------------------- */
   function startCreating() {
-    // Read current form values
+    // Read current form values and save settings
     var title = document.getElementById('project-title').value.trim() || 'My Anime Project';
     var type  = document.getElementById('project-type').value;
     var genre = document.getElementById('project-genre').value;
     var desc  = document.getElementById('project-description').value.trim();
 
-    // Save settings first
     project.title       = title;
     project.type        = type;
     project.genre       = genre;
@@ -563,20 +562,120 @@
       if (!confirm('This will replace all existing episodes, scenes, characters, and storyboard panels. Continue?')) return;
     }
 
+    // Show / hide episode count field based on type
+    var epGroup = document.getElementById('wizard-episode-group');
+    if (type === 'show') {
+      epGroup.style.display = '';
+      document.getElementById('wizard-episode-count').value = 1;
+    } else {
+      epGroup.style.display = 'none';
+    }
+
+    // Pre-fill setting from description if user provided one
+    document.getElementById('wizard-setting').value = '';
+    document.getElementById('wizard-notes').value = desc;
+
+    // Populate character rows from the genre template defaults
+    var template = getGenreTemplate(genre);
+    var container = document.getElementById('wizard-characters');
+    container.innerHTML = '';
+    for (var i = 0; i < template.characters.length; i++) {
+      addWizardCharRow(template.characters[i]);
+    }
+
+    document.getElementById('wizard-modal').classList.remove('hidden');
+  }
+
+  function addWizardCharRow(defaults) {
+    var container = document.getElementById('wizard-characters');
+    var row = document.createElement('div');
+    row.className = 'wizard-char-row';
+    var d = defaults || { name: '', role: 'supporting', description: '', traits: '' };
+    row.innerHTML =
+      '<div class="form-group">' +
+        '<label>Name</label>' +
+        '<input type="text" class="wiz-char-name" value="' + escapeHtml(d.name) + '" placeholder="Character name" maxlength="100">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label>Role</label>' +
+        '<select class="wiz-char-role">' +
+          '<option value="protagonist"' + (d.role === 'protagonist' ? ' selected' : '') + '>Protagonist</option>' +
+          '<option value="antagonist"' + (d.role === 'antagonist' ? ' selected' : '') + '>Antagonist</option>' +
+          '<option value="supporting"' + (d.role === 'supporting' ? ' selected' : '') + '>Supporting</option>' +
+          '<option value="minor"' + (d.role === 'minor' ? ' selected' : '') + '>Minor</option>' +
+        '</select>' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label>Description</label>' +
+        '<input type="text" class="wiz-char-desc" value="' + escapeHtml(d.description) + '" placeholder="Brief description" maxlength="300">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label>Traits</label>' +
+        '<input type="text" class="wiz-char-traits" value="' + escapeHtml(d.traits) + '" placeholder="e.g. brave, kind" maxlength="200">' +
+      '</div>' +
+      '<button type="button" class="btn-danger wiz-remove-char">✕</button>';
+    container.appendChild(row);
+    row.querySelector('.wiz-remove-char').addEventListener('click', function () {
+      row.remove();
+    });
+  }
+
+  function closeWizardModal() {
+    document.getElementById('wizard-modal').classList.add('hidden');
+  }
+
+  /* -----------------------------------------------------------
+     Generate project from the wizard form
+     ----------------------------------------------------------- */
+  function generateFromWizard(e) {
+    e.preventDefault();
+
+    var type  = project.type;
+    var genre = project.genre;
     var template = getGenreTemplate(genre);
 
-    // --- Generate characters ---
+    var setting = document.getElementById('wizard-setting').value.trim();
+    var notes   = document.getElementById('wizard-notes').value.trim();
+    var epCount = 1;
+    if (type === 'show') {
+      epCount = parseInt(document.getElementById('wizard-episode-count').value, 10) || 1;
+      epCount = clamp(epCount, 1, 50);
+    }
+
+    // Read character rows from wizard
+    var charRows = document.querySelectorAll('#wizard-characters .wizard-char-row');
     project.characters = [];
-    for (var c = 0; c < template.characters.length; c++) {
-      var tc = template.characters[c];
+    for (var c = 0; c < charRows.length; c++) {
+      var nameVal = charRows[c].querySelector('.wiz-char-name').value.trim();
+      if (!nameVal) continue; // skip empty names
       project.characters.push({
         id: uid(),
-        name: tc.name,
-        role: tc.role,
+        name: nameVal,
+        role: charRows[c].querySelector('.wiz-char-role').value,
         color: COLORS[c % COLORS.length],
-        description: tc.description,
-        traits: tc.traits
+        description: charRows[c].querySelector('.wiz-char-desc').value.trim(),
+        traits: charRows[c].querySelector('.wiz-char-traits').value.trim()
       });
+    }
+
+    // If no characters were added, use template defaults
+    if (project.characters.length === 0) {
+      for (var tc = 0; tc < template.characters.length; tc++) {
+        var tch = template.characters[tc];
+        project.characters.push({
+          id: uid(),
+          name: tch.name,
+          role: tch.role,
+          color: COLORS[tc % COLORS.length],
+          description: tch.description,
+          traits: tch.traits
+        });
+      }
+    }
+
+    // Store notes in project description if provided
+    if (notes) {
+      project.description = notes;
     }
 
     // --- Generate episodes & scenes ---
@@ -586,25 +685,88 @@
 
     if (type === 'movie') {
       // Single movie – 2 h 50 min
-      var movieEp = { id: uid(), name: title, number: 1, synopsis: desc || 'Full-length anime movie.' };
+      var movieEp = { id: uid(), name: project.title || 'Movie', number: 1, synopsis: project.description || 'Full-length anime movie.' };
       project.episodes.push(movieEp);
-      project.scenes = buildScenes(template.movieScenes, MOVIE_DURATION_SEC, movieEp.id, '');
+      var movieScenes = buildScenes(template.movieScenes, MOVIE_DURATION_SEC, movieEp.id, '');
+      // Apply custom setting to scenes if provided
+      if (setting) {
+        for (var ms = 0; ms < movieScenes.length; ms++) {
+          movieScenes[ms].location = setting + ' – ' + movieScenes[ms].location;
+        }
+      }
+      project.scenes = movieScenes;
     } else {
-      // Show – first episode at 1 h 50 min
-      var ep1 = { id: uid(), name: 'Episode 1 – Pilot', number: 1, synopsis: desc || 'The story begins.' };
-      project.episodes.push(ep1);
-      project.scenes = buildScenes(template.episodeScenes, EPISODE_DURATION_SEC, ep1.id, '');
+      // Show – generate the requested number of episodes, each 1 h 50 min
+      for (var ep = 0; ep < epCount; ep++) {
+        var epNum = ep + 1;
+        var epObj = {
+          id: uid(),
+          name: 'Episode ' + epNum + (epNum === 1 ? ' – Pilot' : ''),
+          number: epNum,
+          synopsis: epNum === 1 ? (project.description || 'The story begins.') : 'Episode ' + epNum + '.'
+        };
+        project.episodes.push(epObj);
+        var epScenes = buildScenes(template.episodeScenes, EPISODE_DURATION_SEC, epObj.id, 'Ep' + epNum);
+        if (setting) {
+          for (var es = 0; es < epScenes.length; es++) {
+            epScenes[es].location = setting + ' – ' + epScenes[es].location;
+          }
+        }
+        project.scenes = project.scenes.concat(epScenes);
+      }
     }
 
-    // Assign all characters to every scene so they appear on the cards
+    // Assign all characters to every scene
     var allCharIds = project.characters.map(function (ch) { return ch.id; });
     for (var s = 0; s < project.scenes.length; s++) {
       project.scenes[s].characterIds = allCharIds.slice();
     }
 
+    // Replace character placeholder names in dialogue with actual names
+    replaceDialoguePlaceholders(template);
+
     autoSave();
+    closeWizardModal();
     refreshAll();
-    showToast('🚀 Project created! You can now edit everything freely.');
+    showToast('🚀 Project created with ' + project.episodes.length + ' episode(s) and ' + project.characters.length + ' character(s)! Edit anything freely.');
+  }
+
+  /* Replace template character names in dialogue/action with the user's custom names */
+  function replaceDialoguePlaceholders(template) {
+    // Build a mapping: template name -> user name
+    var nameMap = {};
+    for (var i = 0; i < template.characters.length; i++) {
+      var tName = template.characters[i].name;
+      // Find the corresponding user character (by index if within range)
+      if (i < project.characters.length) {
+        nameMap[tName] = project.characters[i].name;
+      }
+    }
+    // Apply replacements to all scenes
+    var templateNames = Object.keys(nameMap);
+    for (var s = 0; s < project.scenes.length; s++) {
+      var sc = project.scenes[s];
+      for (var n = 0; n < templateNames.length; n++) {
+        var oldName = templateNames[n];
+        var newName = nameMap[oldName];
+        if (oldName === newName) continue;
+        var regex = new RegExp(escapeRegExp(oldName), 'g');
+        if (sc.dialogue) sc.dialogue = sc.dialogue.replace(regex, newName);
+        if (sc.action) sc.action = sc.action.replace(regex, newName);
+      }
+    }
+  }
+
+  function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function initWizard() {
+    document.getElementById('wizard-cancel-btn').addEventListener('click', closeWizardModal);
+    document.getElementById('wizard-form').addEventListener('submit', generateFromWizard);
+    document.getElementById('wizard-add-char-btn').addEventListener('click', function () {
+      addWizardCharRow(null);
+    });
   }
 
   /* ===================================================================
@@ -1489,6 +1651,7 @@
     initTimeline();
     initStoryboard();
     initExport();
+    initWizard();
     updateDuration();
     document.getElementById('start-creating-btn').addEventListener('click', startCreating);
   }
