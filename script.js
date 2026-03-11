@@ -1567,8 +1567,8 @@
   function handleMusicImport(e, key) {
     var file = e.target.files[0];
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) {
-      showToast('Audio file too large (max 15 MB).');
+    if (file.size > 25 * 1024 * 1024) {
+      showToast('Audio file too large (max 25 MB). Try a compressed format like MP3.');
       e.target.value = '';
       return;
     }
@@ -2081,21 +2081,22 @@
           }
 
           // Set up volume with fade in/out
-          gainNode.gain.setValueAtTime(0.001, startTime);
+          var baseTime = audioCtx.currentTime;
+          gainNode.gain.setValueAtTime(0.001, baseTime + startTime);
           if (fadeIn > 0) {
-            gainNode.gain.linearRampToValueAtTime(vol, startTime + fadeIn);
+            gainNode.gain.linearRampToValueAtTime(vol, baseTime + startTime + fadeIn);
           } else {
-            gainNode.gain.setValueAtTime(vol, startTime);
+            gainNode.gain.setValueAtTime(vol, baseTime + startTime);
           }
           var endTime = startTime + playDuration;
           if (fadeOut > 0) {
-            gainNode.gain.setValueAtTime(vol, Math.max(startTime + fadeIn, endTime - fadeOut));
-            gainNode.gain.linearRampToValueAtTime(0.001, endTime);
+            gainNode.gain.setValueAtTime(vol, baseTime + Math.max(startTime + fadeIn, endTime - fadeOut));
+            gainNode.gain.linearRampToValueAtTime(0.001, baseTime + endTime);
           }
 
           source.connect(gainNode);
           gainNode.connect(audioDestination);
-          source.start(startTime, r.track.startOffset || 0);
+          source.start(baseTime + startTime, r.track.startOffset || 0);
           audioSources.push(source);
         }
       });
