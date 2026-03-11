@@ -12,6 +12,7 @@
   var AUTOSAVE_KEY = 'anime-maker-project';
   var EPISODE_DURATION_SEC = 6600;  // 1 h 50 min per episode for shows
   var MOVIE_DURATION_SEC  = 10200;  // 2 h 50 min for movies
+  var MAX_EPISODES = 50;
   var COLORS = [
     '#e74c8b', '#6c5ce7', '#00b894', '#fdcb6e', '#0984e3',
     '#d63031', '#e17055', '#00cec9', '#a29bfe', '#55efc4'
@@ -540,6 +541,14 @@
     return scenes;
   }
 
+  /* Prefix each scene's location with the user's setting if provided */
+  function applySettingToScenes(scenes, setting) {
+    if (!setting) return;
+    for (var i = 0; i < scenes.length; i++) {
+      scenes[i].location = setting + ' – ' + scenes[i].location;
+    }
+  }
+
   /* -----------------------------------------------------------
      Start Creating – open the wizard modal for user customization
      ----------------------------------------------------------- */
@@ -639,15 +648,16 @@
     var epCount = 1;
     if (type === 'show') {
       epCount = parseInt(document.getElementById('wizard-episode-count').value, 10) || 1;
-      epCount = clamp(epCount, 1, 50);
+      epCount = clamp(epCount, 1, MAX_EPISODES);
     }
 
     // Read character rows from wizard
     var charRows = document.querySelectorAll('#wizard-characters .wizard-char-row');
     project.characters = [];
+    var skippedCount = 0;
     for (var c = 0; c < charRows.length; c++) {
       var nameVal = charRows[c].querySelector('.wiz-char-name').value.trim();
-      if (!nameVal) continue; // skip empty names
+      if (!nameVal) { skippedCount++; continue; }
       project.characters.push({
         id: uid(),
         name: nameVal,
@@ -656,6 +666,9 @@
         description: charRows[c].querySelector('.wiz-char-desc').value.trim(),
         traits: charRows[c].querySelector('.wiz-char-traits').value.trim()
       });
+    }
+    if (skippedCount > 0) {
+      showToast(skippedCount + ' character(s) skipped (empty name).');
     }
 
     // If no characters were added, use template defaults
@@ -688,12 +701,7 @@
       var movieEp = { id: uid(), name: project.title || 'Movie', number: 1, synopsis: project.description || 'Full-length anime movie.' };
       project.episodes.push(movieEp);
       var movieScenes = buildScenes(template.movieScenes, MOVIE_DURATION_SEC, movieEp.id, '');
-      // Apply custom setting to scenes if provided
-      if (setting) {
-        for (var ms = 0; ms < movieScenes.length; ms++) {
-          movieScenes[ms].location = setting + ' – ' + movieScenes[ms].location;
-        }
-      }
+      applySettingToScenes(movieScenes, setting);
       project.scenes = movieScenes;
     } else {
       // Show – generate the requested number of episodes, each 1 h 50 min
@@ -707,11 +715,7 @@
         };
         project.episodes.push(epObj);
         var epScenes = buildScenes(template.episodeScenes, EPISODE_DURATION_SEC, epObj.id, 'Ep' + epNum);
-        if (setting) {
-          for (var es = 0; es < epScenes.length; es++) {
-            epScenes[es].location = setting + ' – ' + epScenes[es].location;
-          }
-        }
+        applySettingToScenes(epScenes, setting);
         project.scenes = project.scenes.concat(epScenes);
       }
     }
@@ -750,7 +754,7 @@
         var oldName = templateNames[n];
         var newName = nameMap[oldName];
         if (oldName === newName) continue;
-        var regex = new RegExp(escapeRegExp(oldName), 'g');
+        var regex = new RegExp('\\b' + escapeRegExp(oldName) + '\\b', 'g');
         if (sc.dialogue) sc.dialogue = sc.dialogue.replace(regex, newName);
         if (sc.action) sc.action = sc.action.replace(regex, newName);
       }
