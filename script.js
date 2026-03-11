@@ -59,7 +59,12 @@
       episodes: [],
       scenes: [],
       characters: [],
-      panels: []
+      panels: [],
+      music: {
+        intro:  { data: null, name: '', volume: 80, fadeIn: 2, fadeOut: 2, startOffset: 0, endTrim: 0 },
+        bgm:    { data: null, name: '', volume: 50, fadeIn: 3, fadeOut: 3, startOffset: 0, loop: true },
+        outro:  { data: null, name: '', volume: 80, fadeIn: 2, fadeOut: 3, startOffset: 0, endTrim: 0 }
+      }
     };
   }
 
@@ -99,6 +104,13 @@
           project.scenes = project.scenes || [];
           project.characters = project.characters || [];
           project.panels = project.panels || [];
+          if (!project.music) {
+            project.music = {
+              intro:  { data: null, name: '', volume: 80, fadeIn: 2, fadeOut: 2, startOffset: 0, endTrim: 0 },
+              bgm:    { data: null, name: '', volume: 50, fadeIn: 3, fadeOut: 3, startOffset: 0, loop: true },
+              outro:  { data: null, name: '', volume: 80, fadeIn: 2, fadeOut: 3, startOffset: 0, endTrim: 0 }
+            };
+          }
         }
       }
     } catch (_) { /* corrupt data – ignore */ }
@@ -1486,6 +1498,224 @@
   }
 
   /* ===================================================================
+     Music / Audio
+     =================================================================== */
+  var musicPreviews = { intro: null, bgm: null, outro: null };
+
+  function initMusic() {
+    var tracks = ['intro', 'bgm', 'outro'];
+    for (var t = 0; t < tracks.length; t++) {
+      (function (key) {
+        var fileInput = document.getElementById(key + '-file');
+        document.getElementById('import-' + key + '-btn').addEventListener('click', function () {
+          fileInput.click();
+        });
+        fileInput.addEventListener('change', function (e) { handleMusicImport(e, key); });
+        document.getElementById('preview-' + key + '-btn').addEventListener('click', function () { toggleMusicPreview(key); });
+        document.getElementById('remove-' + key + '-btn').addEventListener('click', function () { removeMusic(key); });
+
+        // Sliders
+        var volSlider = document.getElementById(key + '-volume');
+        if (volSlider) {
+          volSlider.addEventListener('input', function () {
+            document.getElementById(key + '-volume-val').textContent = this.value + '%';
+            project.music[key].volume = parseInt(this.value, 10);
+            autoSave();
+          });
+        }
+        var fadeInSlider = document.getElementById(key + '-fadein');
+        if (fadeInSlider) {
+          fadeInSlider.addEventListener('input', function () {
+            document.getElementById(key + '-fadein-val').textContent = this.value + 's';
+            project.music[key].fadeIn = parseFloat(this.value);
+            autoSave();
+          });
+        }
+        var fadeOutSlider = document.getElementById(key + '-fadeout');
+        if (fadeOutSlider) {
+          fadeOutSlider.addEventListener('input', function () {
+            document.getElementById(key + '-fadeout-val').textContent = this.value + 's';
+            project.music[key].fadeOut = parseFloat(this.value);
+            autoSave();
+          });
+        }
+        var startInput = document.getElementById(key + '-start');
+        if (startInput) {
+          startInput.addEventListener('change', function () {
+            project.music[key].startOffset = parseFloat(this.value) || 0;
+            autoSave();
+          });
+        }
+        var endInput = document.getElementById(key + '-end');
+        if (endInput) {
+          endInput.addEventListener('change', function () {
+            project.music[key].endTrim = parseFloat(this.value) || 0;
+            autoSave();
+          });
+        }
+        var loopCheck = document.getElementById(key + '-loop');
+        if (loopCheck) {
+          loopCheck.addEventListener('change', function () {
+            project.music[key].loop = this.checked;
+            autoSave();
+          });
+        }
+      })(tracks[t]);
+    }
+  }
+
+  function handleMusicImport(e, key) {
+    var file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      showToast('Audio file too large (max 15 MB).');
+      e.target.value = '';
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      project.music[key].data = ev.target.result;
+      project.music[key].name = file.name;
+      autoSave();
+      refreshMusicUI(key);
+      drawWaveform(key, ev.target.result);
+      showToast(capitalize(key === 'bgm' ? 'background' : key) + ' music imported!');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  function removeMusic(key) {
+    stopMusicPreview(key);
+    project.music[key].data = null;
+    project.music[key].name = '';
+    autoSave();
+    refreshMusicUI(key);
+    showToast(capitalize(key === 'bgm' ? 'background' : key) + ' music removed.');
+  }
+
+  function refreshMusicUI(key) {
+    var track = project.music[key];
+    var hasData = !!track.data;
+    var badge = document.getElementById(key + '-status');
+    var settings = document.getElementById(key + '-settings');
+    var previewBtn = document.getElementById('preview-' + key + '-btn');
+    var removeBtn = document.getElementById('remove-' + key + '-btn');
+
+    badge.textContent = hasData ? track.name : 'No file';
+    badge.classList.toggle('loaded', hasData);
+    previewBtn.disabled = !hasData;
+    removeBtn.disabled = !hasData;
+
+    if (hasData) {
+      settings.classList.remove('hidden');
+      // Restore slider values
+      var volSlider = document.getElementById(key + '-volume');
+      if (volSlider) { volSlider.value = track.volume; document.getElementById(key + '-volume-val').textContent = track.volume + '%'; }
+      var fiSlider = document.getElementById(key + '-fadein');
+      if (fiSlider) { fiSlider.value = track.fadeIn; document.getElementById(key + '-fadein-val').textContent = track.fadeIn + 's'; }
+      var foSlider = document.getElementById(key + '-fadeout');
+      if (foSlider) { foSlider.value = track.fadeOut; document.getElementById(key + '-fadeout-val').textContent = track.fadeOut + 's'; }
+      var startInput = document.getElementById(key + '-start');
+      if (startInput) startInput.value = track.startOffset;
+      var endInput = document.getElementById(key + '-end');
+      if (endInput) endInput.value = track.endTrim || 0;
+      var loopCheck = document.getElementById(key + '-loop');
+      if (loopCheck) loopCheck.checked = !!track.loop;
+      // Draw waveform if data present
+      drawWaveform(key, track.data);
+    } else {
+      settings.classList.add('hidden');
+      clearWaveform(key);
+    }
+  }
+
+  function refreshAllMusic() {
+    var tracks = ['intro', 'bgm', 'outro'];
+    for (var i = 0; i < tracks.length; i++) {
+      refreshMusicUI(tracks[i]);
+    }
+  }
+
+  function toggleMusicPreview(key) {
+    var btn = document.getElementById('preview-' + key + '-btn');
+    if (musicPreviews[key]) {
+      stopMusicPreview(key);
+      return;
+    }
+    var track = project.music[key];
+    if (!track.data) return;
+    var audio = new Audio(track.data);
+    audio.volume = (track.volume || 80) / 100;
+    if (track.startOffset) audio.currentTime = track.startOffset;
+    audio.play();
+    musicPreviews[key] = audio;
+    btn.textContent = '⏹ Stop';
+    audio.addEventListener('ended', function () {
+      stopMusicPreview(key);
+    });
+  }
+
+  function stopMusicPreview(key) {
+    if (musicPreviews[key]) {
+      musicPreviews[key].pause();
+      musicPreviews[key] = null;
+    }
+    var btn = document.getElementById('preview-' + key + '-btn');
+    if (btn) btn.textContent = '▶ Preview';
+  }
+
+  function drawWaveform(key, dataUrl) {
+    var container = document.getElementById(key + '-waveform');
+    if (!container) return;
+    container.innerHTML = '';
+    var cvs = document.createElement('canvas');
+    cvs.width = container.offsetWidth || 300;
+    cvs.height = 60;
+    container.appendChild(cvs);
+    var ctx = cvs.getContext('2d');
+
+    // Decode audio and draw waveform
+    fetch(dataUrl)
+      .then(function (r) { return r.arrayBuffer(); })
+      .then(function (buf) {
+        var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        return audioCtx.decodeAudioData(buf).then(function (decoded) {
+          var rawData = decoded.getChannelData(0);
+          var samples = cvs.width;
+          var blockSize = Math.floor(rawData.length / samples);
+          var peaks = [];
+          for (var i = 0; i < samples; i++) {
+            var sum = 0;
+            for (var j = 0; j < blockSize; j++) {
+              sum += Math.abs(rawData[i * blockSize + j]);
+            }
+            peaks.push(sum / blockSize);
+          }
+          var maxPeak = Math.max.apply(null, peaks) || 1;
+          ctx.clearRect(0, 0, cvs.width, cvs.height);
+          ctx.fillStyle = '#6c5ce7';
+          for (var k = 0; k < peaks.length; k++) {
+            var h = (peaks[k] / maxPeak) * cvs.height * 0.9;
+            ctx.fillRect(k, (cvs.height - h) / 2, 1, h);
+          }
+          audioCtx.close();
+        });
+      })
+      .catch(function () {
+        ctx.fillStyle = '#9999bb';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Waveform unavailable', cvs.width / 2, cvs.height / 2 + 4);
+      });
+  }
+
+  function clearWaveform(key) {
+    var container = document.getElementById(key + '-waveform');
+    if (container) container.innerHTML = '';
+  }
+
+  /* ===================================================================
      Export / Import
      =================================================================== */
   function downloadFile(content, filename, mime) {
@@ -1570,6 +1800,19 @@
         lines.push('  SCENE: ' + su.name + '  [' + formatTime(su.durationSec) + ']');
         if (su.dialogue) { lines.push('  Dialogue:'); lines.push('    ' + su.dialogue); }
         if (su.action) { lines.push('  Action:'); lines.push('    ' + su.action); }
+        lines.push('');
+      }
+    }
+
+    // Music tracks
+    if (project.music) {
+      var hasMusicInfo = project.music.intro.name || project.music.bgm.name || project.music.outro.name;
+      if (hasMusicInfo) {
+        lines.push('MUSIC');
+        lines.push('-'.repeat(40));
+        if (project.music.intro.name) lines.push('  Intro: ' + project.music.intro.name + ' (vol: ' + project.music.intro.volume + '%)');
+        if (project.music.bgm.name) lines.push('  BGM: ' + project.music.bgm.name + ' (vol: ' + project.music.bgm.volume + '%, loop: ' + (project.music.bgm.loop ? 'yes' : 'no') + ')');
+        if (project.music.outro.name) lines.push('  Outro: ' + project.music.outro.name + ' (vol: ' + project.music.outro.volume + '%)');
         lines.push('');
       }
     }
@@ -1728,6 +1971,26 @@
     }
 
     var stream = canvas.captureStream(30);
+
+    // Mix audio tracks into the stream if any music is loaded
+    var audioCtx = null;
+    var audioDestination = null;
+    var audioSources = [];
+    var hasAudio = project.music && (project.music.intro.data || project.music.bgm.data || project.music.outro.data);
+
+    if (hasAudio) {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioDestination = audioCtx.createMediaStreamDestination();
+        // Add audio track to the video stream
+        var audioTrack = audioDestination.stream.getAudioTracks()[0];
+        if (audioTrack) stream.addTrack(audioTrack);
+      } catch (audioErr) {
+        // Audio mixing not available – continue without audio
+        audioCtx = null;
+      }
+    }
+
     var recorder;
     try {
       recorder = new MediaRecorder(stream, { mimeType: mimeType });
@@ -1753,31 +2016,111 @@
       btn.disabled = false;
       progressEl.classList.add('hidden');
       showToast('Video downloaded!');
+      // Clean up audio context
+      if (audioCtx) {
+        for (var si = 0; si < audioSources.length; si++) {
+          try { audioSources[si].stop(); } catch (_) {}
+        }
+        audioCtx.close();
+      }
     };
     recorder.onerror = function () {
       btn.disabled = false;
       progressEl.classList.add('hidden');
       showToast('Error during video recording.');
+      if (audioCtx) audioCtx.close();
     };
 
-    recorder.start();
+    // Schedule audio tracks
+    var totalVideoSec = slides.length * (FRAME_MS / 1000);
+    var audioReady = Promise.resolve();
 
-    var slideIndex = 0;
-    function nextSlide() {
-      if (slideIndex >= slides.length) {
-        barEl.style.width = '100%';
-        textEl.textContent = 'Finalizing…';
-        recorder.stop();
-        return;
+    if (audioCtx && hasAudio) {
+      var decodePromises = [];
+      var musicKeys = ['intro', 'bgm', 'outro'];
+      for (var mk = 0; mk < musicKeys.length; mk++) {
+        (function (mkey) {
+          var mtrack = project.music[mkey];
+          if (!mtrack.data) return;
+          var p = fetch(mtrack.data)
+            .then(function (r) { return r.arrayBuffer(); })
+            .then(function (buf) { return audioCtx.decodeAudioData(buf); })
+            .then(function (decoded) {
+              return { key: mkey, buffer: decoded, track: mtrack };
+            })
+            .catch(function () { return null; });
+          decodePromises.push(p);
+        })(musicKeys[mk]);
       }
-      var pct = Math.round(((slideIndex + 1) / slides.length) * 100);
-      barEl.style.width = pct + '%';
-      textEl.textContent = 'Rendering slide ' + (slideIndex + 1) + ' / ' + slides.length;
-      slides[slideIndex]();
-      slideIndex++;
-      setTimeout(nextSlide, FRAME_MS);
+      audioReady = Promise.all(decodePromises).then(function (results) {
+        for (var ri = 0; ri < results.length; ri++) {
+          if (!results[ri]) continue;
+          var r = results[ri];
+          var source = audioCtx.createBufferSource();
+          source.buffer = r.buffer;
+
+          var gainNode = audioCtx.createGain();
+          var vol = (r.track.volume || 80) / 100;
+          var fadeIn = r.track.fadeIn || 0;
+          var fadeOut = r.track.fadeOut || 0;
+
+          // Calculate timing
+          var startTime = 0;
+          var playDuration = totalVideoSec;
+          if (r.key === 'intro') {
+            startTime = 0;
+            playDuration = Math.min(r.buffer.duration, totalVideoSec);
+          } else if (r.key === 'outro') {
+            var outroDur = r.buffer.duration;
+            startTime = Math.max(0, totalVideoSec - outroDur);
+            playDuration = Math.min(outroDur, totalVideoSec);
+          } else {
+            // BGM: fill middle, optionally loop
+            if (r.track.loop) source.loop = true;
+            playDuration = totalVideoSec;
+          }
+
+          // Set up volume with fade in/out
+          gainNode.gain.setValueAtTime(0.001, startTime);
+          if (fadeIn > 0) {
+            gainNode.gain.linearRampToValueAtTime(vol, startTime + fadeIn);
+          } else {
+            gainNode.gain.setValueAtTime(vol, startTime);
+          }
+          var endTime = startTime + playDuration;
+          if (fadeOut > 0) {
+            gainNode.gain.setValueAtTime(vol, Math.max(startTime + fadeIn, endTime - fadeOut));
+            gainNode.gain.linearRampToValueAtTime(0.001, endTime);
+          }
+
+          source.connect(gainNode);
+          gainNode.connect(audioDestination);
+          source.start(startTime, r.track.startOffset || 0);
+          audioSources.push(source);
+        }
+      });
     }
-    nextSlide();
+
+    audioReady.then(function () {
+      recorder.start();
+
+      var slideIndex = 0;
+      function nextSlide() {
+        if (slideIndex >= slides.length) {
+          barEl.style.width = '100%';
+          textEl.textContent = 'Finalizing…';
+          recorder.stop();
+          return;
+        }
+        var pct = Math.round(((slideIndex + 1) / slides.length) * 100);
+        barEl.style.width = pct + '%';
+        textEl.textContent = 'Rendering slide ' + (slideIndex + 1) + ' / ' + slides.length;
+        slides[slideIndex]();
+        slideIndex++;
+        setTimeout(nextSlide, FRAME_MS);
+      }
+      nextSlide();
+    });
   }
 
   /* --- MP4 helper drawing functions --- */
@@ -1909,6 +2252,13 @@
         project.scenes = project.scenes || [];
         project.characters = project.characters || [];
         project.panels = project.panels || [];
+        if (!project.music) {
+          project.music = {
+            intro:  { data: null, name: '', volume: 80, fadeIn: 2, fadeOut: 2, startOffset: 0, endTrim: 0 },
+            bgm:    { data: null, name: '', volume: 50, fadeIn: 3, fadeOut: 3, startOffset: 0, loop: true },
+            outro:  { data: null, name: '', volume: 80, fadeIn: 2, fadeOut: 3, startOffset: 0, endTrim: 0 }
+          };
+        }
         autoSave();
         refreshAll();
         showToast('Project imported successfully!');
@@ -1952,6 +2302,7 @@
     refreshTimelineEpisodeFilter();
     refreshStoryboardFilter();
     renderStoryboardPanels();
+    refreshAllMusic();
     updateDuration();
   }
 
@@ -1967,8 +2318,10 @@
     initScenes();
     initTimeline();
     initStoryboard();
+    initMusic();
     initExport();
     initWizard();
+    refreshAllMusic();
     updateDuration();
     document.getElementById('start-creating-btn').addEventListener('click', startCreating);
   }

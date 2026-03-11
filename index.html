@@ -17,6 +17,7 @@
       <button class="nav-btn" data-tab="characters">Characters</button>
       <button class="nav-btn" data-tab="timeline">Timeline</button>
       <button class="nav-btn" data-tab="storyboard">Storyboard</button>
+      <button class="nav-btn" data-tab="music">Music</button>
       <button class="nav-btn" data-tab="export">Export</button>
     </nav>
     <div id="total-duration-display">Total: 00:00:00 / 10:00:00</div>
@@ -344,6 +345,140 @@
               <button type="button" class="btn-secondary" id="panel-cancel-btn">Cancel</button>
             </div>
           </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Music Tab ===== -->
+    <section id="tab-music" class="tab-panel">
+      <h2>Music &amp; Audio</h2>
+      <p class="hint">Import audio tracks for your intro, outro, and background music. Adjust volume and fade settings to get the perfect mix.</p>
+
+      <div class="music-tracks">
+        <!-- Intro Music -->
+        <div class="music-card" data-track="intro">
+          <div class="music-card-header">
+            <h3>🎵 Intro Music</h3>
+            <span class="music-badge" id="intro-status">No file</span>
+          </div>
+          <p>Opening theme that plays at the start of your anime.</p>
+          <input type="file" id="intro-file" accept="audio/*" class="hidden">
+          <div class="music-controls">
+            <button id="import-intro-btn" class="btn-primary">Import Audio</button>
+            <button id="preview-intro-btn" class="btn-small" disabled>▶ Preview</button>
+            <button id="remove-intro-btn" class="btn-danger btn-small" disabled>✕ Remove</button>
+          </div>
+          <div id="intro-settings" class="music-settings hidden">
+            <div class="music-setting-row">
+              <label>Volume</label>
+              <input type="range" id="intro-volume" min="0" max="100" value="80" class="music-slider">
+              <span id="intro-volume-val" class="music-slider-val">80%</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Fade In (sec)</label>
+              <input type="range" id="intro-fadein" min="0" max="10" value="2" step="0.5" class="music-slider">
+              <span id="intro-fadein-val" class="music-slider-val">2s</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Fade Out (sec)</label>
+              <input type="range" id="intro-fadeout" min="0" max="10" value="2" step="0.5" class="music-slider">
+              <span id="intro-fadeout-val" class="music-slider-val">2s</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Start Offset (sec)</label>
+              <input type="number" id="intro-start" min="0" value="0" step="0.5" class="music-number-input">
+            </div>
+            <div class="music-setting-row">
+              <label>End Trim (sec)</label>
+              <input type="number" id="intro-end" min="0" value="0" step="0.5" class="music-number-input">
+              <span class="hint">(0 = play full track)</span>
+            </div>
+            <div id="intro-waveform" class="music-waveform"></div>
+          </div>
+        </div>
+
+        <!-- Background Music -->
+        <div class="music-card" data-track="bgm">
+          <div class="music-card-header">
+            <h3>🎶 Background Music</h3>
+            <span class="music-badge" id="bgm-status">No file</span>
+          </div>
+          <p>Ambient music that plays throughout the body of your anime.</p>
+          <input type="file" id="bgm-file" accept="audio/*" class="hidden">
+          <div class="music-controls">
+            <button id="import-bgm-btn" class="btn-primary">Import Audio</button>
+            <button id="preview-bgm-btn" class="btn-small" disabled>▶ Preview</button>
+            <button id="remove-bgm-btn" class="btn-danger btn-small" disabled>✕ Remove</button>
+          </div>
+          <div id="bgm-settings" class="music-settings hidden">
+            <div class="music-setting-row">
+              <label>Volume</label>
+              <input type="range" id="bgm-volume" min="0" max="100" value="50" class="music-slider">
+              <span id="bgm-volume-val" class="music-slider-val">50%</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Fade In (sec)</label>
+              <input type="range" id="bgm-fadein" min="0" max="10" value="3" step="0.5" class="music-slider">
+              <span id="bgm-fadein-val" class="music-slider-val">3s</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Fade Out (sec)</label>
+              <input type="range" id="bgm-fadeout" min="0" max="10" value="3" step="0.5" class="music-slider">
+              <span id="bgm-fadeout-val" class="music-slider-val">3s</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Loop</label>
+              <input type="checkbox" id="bgm-loop" checked>
+              <span class="hint">Repeat track to fill project duration</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Start Offset (sec)</label>
+              <input type="number" id="bgm-start" min="0" value="0" step="0.5" class="music-number-input">
+            </div>
+            <div id="bgm-waveform" class="music-waveform"></div>
+          </div>
+        </div>
+
+        <!-- Outro Music -->
+        <div class="music-card" data-track="outro">
+          <div class="music-card-header">
+            <h3>🎼 Outro Music</h3>
+            <span class="music-badge" id="outro-status">No file</span>
+          </div>
+          <p>Ending theme that plays at the conclusion of your anime.</p>
+          <input type="file" id="outro-file" accept="audio/*" class="hidden">
+          <div class="music-controls">
+            <button id="import-outro-btn" class="btn-primary">Import Audio</button>
+            <button id="preview-outro-btn" class="btn-small" disabled>▶ Preview</button>
+            <button id="remove-outro-btn" class="btn-danger btn-small" disabled>✕ Remove</button>
+          </div>
+          <div id="outro-settings" class="music-settings hidden">
+            <div class="music-setting-row">
+              <label>Volume</label>
+              <input type="range" id="outro-volume" min="0" max="100" value="80" class="music-slider">
+              <span id="outro-volume-val" class="music-slider-val">80%</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Fade In (sec)</label>
+              <input type="range" id="outro-fadein" min="0" max="10" value="2" step="0.5" class="music-slider">
+              <span id="outro-fadein-val" class="music-slider-val">2s</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Fade Out (sec)</label>
+              <input type="range" id="outro-fadeout" min="0" max="10" value="3" step="0.5" class="music-slider">
+              <span id="outro-fadeout-val" class="music-slider-val">3s</span>
+            </div>
+            <div class="music-setting-row">
+              <label>Start Offset (sec)</label>
+              <input type="number" id="outro-start" min="0" value="0" step="0.5" class="music-number-input">
+            </div>
+            <div class="music-setting-row">
+              <label>End Trim (sec)</label>
+              <input type="number" id="outro-end" min="0" value="0" step="0.5" class="music-number-input">
+              <span class="hint">(0 = play full track)</span>
+            </div>
+            <div id="outro-waveform" class="music-waveform"></div>
+          </div>
         </div>
       </div>
     </section>
