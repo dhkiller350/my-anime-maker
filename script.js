@@ -1578,6 +1578,317 @@
     showToast('Summary downloaded!');
   }
 
+  /* --- MP4 / Video Export --- */
+  function exportMP4() {
+    var btn = document.getElementById('export-mp4-btn');
+    var progressEl = document.getElementById('mp4-progress');
+    var barEl = document.getElementById('mp4-progress-bar');
+    var textEl = document.getElementById('mp4-progress-text');
+    btn.disabled = true;
+    progressEl.classList.remove('hidden');
+    barEl.style.width = '0%';
+    textEl.textContent = 'Preparing…';
+
+    var WIDTH = 1280;
+    var HEIGHT = 720;
+    var FRAME_MS = 2000; // 2 seconds per slide
+    var canvas = document.createElement('canvas');
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    var ctx = canvas.getContext('2d');
+
+    // Build slides (each slide is a draw function)
+    var slides = [];
+
+    // --- Title slide ---
+    slides.push(function () {
+      drawBackground(ctx, WIDTH, HEIGHT, '#0d0d1a');
+      ctx.fillStyle = '#e74c8b';
+      ctx.font = 'bold 52px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(project.title || 'My Anime Project', WIDTH / 2, HEIGHT / 2 - 40);
+      ctx.fillStyle = '#9999bb';
+      ctx.font = '26px Segoe UI, sans-serif';
+      ctx.fillText(capitalize(project.type) + ' • ' + capitalize(project.genre), WIDTH / 2, HEIGHT / 2 + 20);
+      ctx.fillText(project.fps + ' FPS • ' + project.resolution, WIDTH / 2, HEIGHT / 2 + 60);
+      if (project.description) {
+        ctx.font = '18px Segoe UI, sans-serif';
+        ctx.fillStyle = '#eaeaff';
+        wrapText(ctx, project.description, WIDTH / 2, HEIGHT / 2 + 120, WIDTH - 200, 24);
+      }
+    });
+
+    // --- Characters slide ---
+    if (project.characters.length > 0) {
+      slides.push(function () {
+        drawBackground(ctx, WIDTH, HEIGHT, '#0d0d1a');
+        drawHeading(ctx, WIDTH, 'Characters');
+        var y = 160;
+        for (var i = 0; i < project.characters.length && y < HEIGHT - 40; i++) {
+          var ch = project.characters[i];
+          ctx.fillStyle = ch.color || '#e74c8b';
+          ctx.font = 'bold 24px Segoe UI, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText(ch.name + ' (' + ch.role + ')', 80, y);
+          if (ch.description) {
+            ctx.fillStyle = '#9999bb';
+            ctx.font = '18px Segoe UI, sans-serif';
+            y += 30;
+            wrapText(ctx, ch.description, 80, y, WIDTH - 160, 22, 'left');
+            y += Math.ceil(ch.description.length / 60) * 22;
+          }
+          y += 40;
+        }
+      });
+    }
+
+    // --- Episode + Scene slides ---
+    var sortedEpisodes = project.episodes.slice().sort(function (a, b) { return a.number - b.number; });
+    for (var e = 0; e < sortedEpisodes.length; e++) {
+      (function (ep) {
+        slides.push(function () {
+          drawBackground(ctx, WIDTH, HEIGHT, '#161625');
+          drawHeading(ctx, WIDTH, 'Episode ' + ep.number);
+          ctx.fillStyle = '#eaeaff';
+          ctx.font = 'bold 32px Segoe UI, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(ep.name, WIDTH / 2, 200);
+          if (ep.synopsis) {
+            ctx.fillStyle = '#9999bb';
+            ctx.font = '20px Segoe UI, sans-serif';
+            wrapText(ctx, ep.synopsis, WIDTH / 2, 260, WIDTH - 200, 26);
+          }
+        });
+
+        var epScenes = project.scenes.filter(function (s) { return s.episodeId === ep.id; });
+        for (var s = 0; s < epScenes.length; s++) {
+          (function (sc) {
+            slides.push(function () {
+              drawSceneSlide(ctx, WIDTH, HEIGHT, sc);
+            });
+            // If scene has panels, add a slide for each
+            var scenePanels = project.panels.filter(function (p) { return p.sceneId === sc.id; });
+            for (var pi = 0; pi < scenePanels.length; pi++) {
+              (function (panel) {
+                slides.push(function () {
+                  drawPanelSlide(ctx, WIDTH, HEIGHT, panel, sc.name);
+                });
+              })(scenePanels[pi]);
+            }
+          })(epScenes[s]);
+        }
+      })(sortedEpisodes[e]);
+    }
+
+    // --- Unassigned scenes ---
+    var unassigned = project.scenes.filter(function (s) { return !s.episodeId; });
+    for (var u = 0; u < unassigned.length; u++) {
+      (function (sc) {
+        slides.push(function () {
+          drawSceneSlide(ctx, WIDTH, HEIGHT, sc);
+        });
+        var scenePanels = project.panels.filter(function (p) { return p.sceneId === sc.id; });
+        for (var pi = 0; pi < scenePanels.length; pi++) {
+          (function (panel) {
+            slides.push(function () {
+              drawPanelSlide(ctx, WIDTH, HEIGHT, panel, sc.name);
+            });
+          })(scenePanels[pi]);
+        }
+      })(unassigned[u]);
+    }
+
+    // --- End slide ---
+    slides.push(function () {
+      drawBackground(ctx, WIDTH, HEIGHT, '#0d0d1a');
+      ctx.fillStyle = '#e74c8b';
+      ctx.font = 'bold 48px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('End', WIDTH / 2, HEIGHT / 2 - 10);
+      ctx.fillStyle = '#9999bb';
+      ctx.font = '22px Segoe UI, sans-serif';
+      ctx.fillText('Made with My Anime Maker', WIDTH / 2, HEIGHT / 2 + 40);
+    });
+
+    if (slides.length === 0) {
+      btn.disabled = false;
+      progressEl.classList.add('hidden');
+      showToast('Nothing to export – add some content first.');
+      return;
+    }
+
+    // Determine supported MIME type
+    var mimeType = 'video/webm;codecs=vp9';
+    if (typeof MediaRecorder !== 'undefined') {
+      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+        mimeType = 'video/webm;codecs=vp9';
+      } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        mimeType = 'video/webm';
+      }
+    }
+
+    var stream = canvas.captureStream(30);
+    var recorder;
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: mimeType });
+    } catch (recErr) {
+      btn.disabled = false;
+      progressEl.classList.add('hidden');
+      showToast('Video recording is not supported in this browser.');
+      return;
+    }
+    var chunks = [];
+    recorder.ondataavailable = function (ev) { if (ev.data.size > 0) chunks.push(ev.data); };
+    recorder.onstop = function () {
+      var fileExt = mimeType.indexOf('webm') !== -1 ? '.webm' : '.mp4';
+      var blob = new Blob(chunks, { type: mimeType });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = (project.title || 'anime-project').replace(/\s+/g, '-') + fileExt;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      btn.disabled = false;
+      progressEl.classList.add('hidden');
+      showToast('Video downloaded!');
+    };
+    recorder.onerror = function () {
+      btn.disabled = false;
+      progressEl.classList.add('hidden');
+      showToast('Error during video recording.');
+    };
+
+    recorder.start();
+
+    var slideIndex = 0;
+    function nextSlide() {
+      if (slideIndex >= slides.length) {
+        barEl.style.width = '100%';
+        textEl.textContent = 'Finalizing…';
+        recorder.stop();
+        return;
+      }
+      var pct = Math.round(((slideIndex + 1) / slides.length) * 100);
+      barEl.style.width = pct + '%';
+      textEl.textContent = 'Rendering slide ' + (slideIndex + 1) + ' / ' + slides.length;
+      slides[slideIndex]();
+      slideIndex++;
+      setTimeout(nextSlide, FRAME_MS);
+    }
+    nextSlide();
+  }
+
+  /* --- MP4 helper drawing functions --- */
+  function capitalize(str) {
+    return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
+  }
+
+  function drawBackground(ctx, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  function drawHeading(ctx, w, text) {
+    ctx.fillStyle = '#e74c8b';
+    ctx.font = 'bold 40px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, w / 2, 80);
+    ctx.strokeStyle = '#2a2a44';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(80, 100);
+    ctx.lineTo(w - 80, 100);
+    ctx.stroke();
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight, align) {
+    ctx.textAlign = align || 'center';
+    var words = text.split(' ');
+    var line = '';
+    for (var i = 0; i < words.length; i++) {
+      var testLine = line + words[i] + ' ';
+      if (ctx.measureText(testLine).width > maxWidth && i > 0) {
+        ctx.fillText(line.trim(), x, y);
+        line = words[i] + ' ';
+        y += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line.trim(), x, y);
+  }
+
+  function drawSceneSlide(ctx, w, h, sc) {
+    drawBackground(ctx, w, h, '#1e1e33');
+    drawHeading(ctx, w, 'Scene: ' + (sc.name || 'Untitled'));
+    var y = 140;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#9999bb';
+    ctx.font = '20px Segoe UI, sans-serif';
+    ctx.fillText('Duration: ' + formatTime(sc.durationSec || 0), 80, y); y += 32;
+    if (sc.location) { ctx.fillText('Location: ' + sc.location, 80, y); y += 32; }
+    ctx.fillText('Mood: ' + (sc.mood || 'neutral'), 80, y); y += 40;
+    if (sc.dialogue) {
+      ctx.fillStyle = '#eaeaff';
+      ctx.font = 'italic 18px Segoe UI, sans-serif';
+      wrapText(ctx, sc.dialogue, 80, y, w - 160, 24, 'left');
+      y += Math.ceil(sc.dialogue.length / 70) * 24 + 20;
+    }
+    if (sc.action) {
+      ctx.fillStyle = '#6c5ce7';
+      ctx.font = '18px Segoe UI, sans-serif';
+      wrapText(ctx, sc.action, 80, Math.min(y, h - 100), w - 160, 24, 'left');
+    }
+  }
+
+  function drawPanelSlide(ctx, w, h, panel, sceneName) {
+    drawBackground(ctx, w, h, '#0d0d1a');
+    ctx.fillStyle = '#6c5ce7';
+    ctx.font = 'bold 16px Segoe UI, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Scene: ' + (sceneName || ''), 20, 30);
+    ctx.fillText('Camera: ' + (panel.camera || ''), 20, 52);
+
+    if (panel.imageData) {
+      var img = new Image();
+      img.src = panel.imageData;
+      // Draw synchronously since data URIs load instantly
+      try {
+        var imgW = Math.min(w - 80, 800);
+        var imgH = Math.min(h - 180, 450);
+        var imgX = (w - imgW) / 2;
+        ctx.drawImage(img, imgX, 70, imgW, imgH);
+      } catch (_) { /* ignore draw errors */ }
+    }
+
+    var bottomY = h - 80;
+    if (panel.description) {
+      ctx.fillStyle = '#eaeaff';
+      ctx.font = '18px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      wrapText(ctx, panel.description, w / 2, bottomY, w - 100, 22);
+    }
+    if (panel.sfx) {
+      ctx.fillStyle = '#f0a500';
+      ctx.font = '16px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🔊 ' + panel.sfx, w / 2, h - 20);
+    }
+  }
+
+  /* --- Reset Project --- */
+  function resetProject() {
+    if (!confirm('Are you sure you want to reset? All project data will be permanently lost.')) {
+      return;
+    }
+    project = defaultProject();
+    try { localStorage.removeItem(AUTOSAVE_KEY); } catch (_) { /* ignore */ }
+    refreshAll();
+    showToast('Project has been reset.');
+  }
+
   function importJSON() {
     document.getElementById('import-file').click();
   }
@@ -1613,8 +1924,10 @@
   function initExport() {
     document.getElementById('export-json-btn').addEventListener('click', exportJSON);
     document.getElementById('export-text-btn').addEventListener('click', exportText);
+    document.getElementById('export-mp4-btn').addEventListener('click', exportMP4);
     document.getElementById('import-btn').addEventListener('click', importJSON);
     document.getElementById('import-file').addEventListener('change', handleImport);
+    document.getElementById('reset-project-btn').addEventListener('click', resetProject);
   }
 
   /* ===================================================================

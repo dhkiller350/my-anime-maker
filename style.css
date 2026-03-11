@@ -583,6 +583,38 @@ input[type="file"] {
   margin-bottom: 1rem;
 }
 
+.export-card-danger {
+  border-color: var(--danger);
+}
+
+.export-progress {
+  margin-top: 0.75rem;
+  background: var(--bg-input);
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+  height: 28px;
+}
+
+.export-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.3s ease;
+  border-radius: var(--radius);
+}
+
+.export-progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  pointer-events: none;
+}
+
 /* ===== Toast ===== */
 .toast {
   position: fixed;

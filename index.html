@@ -364,10 +364,24 @@
           <button id="export-text-btn" class="btn-primary">Download Summary</button>
         </div>
         <div class="export-card">
+          <h3>🎬 Export as MP4</h3>
+          <p>Generate a video slideshow of your anime project with title cards, episode info, scenes, and storyboard panels.</p>
+          <button id="export-mp4-btn" class="btn-primary">Download MP4</button>
+          <div id="mp4-progress" class="export-progress hidden">
+            <div id="mp4-progress-bar" class="export-progress-bar"></div>
+            <span id="mp4-progress-text" class="export-progress-text">Generating...</span>
+          </div>
+        </div>
+        <div class="export-card">
           <h3>📂 Import Project</h3>
           <p>Load a previously saved project JSON file.</p>
           <input type="file" id="import-file" accept=".json" class="hidden">
           <button id="import-btn" class="btn-primary">Import JSON</button>
+        </div>
+        <div class="export-card export-card-danger">
+          <h3>🔄 Reset Project</h3>
+          <p>Clear all project data and start fresh. This cannot be undone.</p>
+          <button id="reset-project-btn" class="btn-danger">Reset Everything</button>
         </div>
       </div>
     </section>
